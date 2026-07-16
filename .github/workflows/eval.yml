@@ -1,0 +1,40 @@
+# CI: every push and PR runs the functional suite, then the full evaluation,
+# then gates on regression against the committed baseline.
+#
+# The uploaded report artifact is the release evidence: what the AI scored,
+# on which cases, at which commit.
+name: AI Evaluation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Functional test suite (accuracy, grounding, relevance, consistency, safety)
+        run: pytest
+
+      - name: Run full evaluation
+        run: python scripts/run_eval.py --label "ci-${{ github.sha }}" --out reports/candidate.json
+
+      - name: Regression gate vs committed baseline
+        run: python scripts/compare.py reports/baseline.json reports/candidate.json
+
+      - name: Upload evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: reports/candidate.json
