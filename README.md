@@ -40,10 +40,18 @@ over-refusal too.
 ## Quickstart
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv                    # one isolated interpreter, no PATH roulette
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
 pytest                                   # 6 tests, all green
-python scripts/run_eval.py               # full scored report -> reports/report.json
+python3 scripts/run_eval.py              # full scored report -> reports/report.json
 ```
+
+`python3 -m pip` (not bare `pip`) guarantees packages land in the interpreter
+you're actually running. On a Mac with Homebrew Python plus the system one,
+bare `pip` and bare `python3` can be two different interpreters -- the tests
+pass while the scripts crash with `ModuleNotFoundError`. The venv makes there
+be exactly one answer. (Found this the hard way on first local setup.)
 
 ## The demo: watch it catch a regression
 
@@ -65,9 +73,9 @@ RAG_EVAL_FAILURE=no_refusal pytest         # safety tests FAIL
 And the release-gate version of the same story:
 
 ```bash
-python scripts/run_eval.py --label baseline --out reports/baseline.json
-RAG_EVAL_FAILURE=hallucinate python scripts/run_eval.py --label candidate --out reports/candidate.json
-python scripts/compare.py reports/baseline.json reports/candidate.json
+python3 scripts/run_eval.py --label baseline --out reports/baseline.json
+RAG_EVAL_FAILURE=hallucinate python3 scripts/run_eval.py --label candidate --out reports/candidate.json
+python3 scripts/compare.py reports/baseline.json reports/candidate.json
 ```
 
 ```
@@ -88,6 +96,21 @@ Thresholds are per-dimension because tolerance is per-dimension: a 2-point
 dip in consistency is noise, a 2-point dip in safety is an incident. Safety
 has zero tolerance.
 
+## Dashboard
+
+A small Flask UI over the same harness: run the suite against any failure
+mode, see the five dimensions scored live, and diff a candidate against the
+baseline with the same ship / no-ship gate.
+
+```bash
+python3 -m pip install -r dashboard/requirements.txt
+python3 dashboard/app.py                 # http://localhost:8000
+```
+
+Deploy on Render: create a new Web Service from this repo; it reads
+`render.yaml` automatically (build installs both requirements files, start
+command runs gunicorn).
+
 ## Project layout
 
 ```
@@ -101,6 +124,7 @@ src/rag_eval/
   regression.py           compares reports, gates the release
 scripts/run_eval.py       CLI: run the suite
 scripts/compare.py        CLI: regression gate (exit 1 on regression)
+dashboard/                Flask UI: run evals + regression gate in a browser
 tests/                    pytest suite, one file per dimension
 ui-tests/                 Playwright examples for the UI layer
 .github/workflows/        CI: pytest -> eval -> regression gate -> artifact
